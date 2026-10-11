@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a1d32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Fatick Terrain">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Fatick Terrain · Enquêtes infrastructures</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="libs/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="map" aria-label="Carte des infrastructures"></div>
+
+<!-- Barre du haut -->
+<div id="topbar">
+  <button id="btn-menu" class="round" aria-label="Menu">☰</button>
+  <div id="progress" title="Infrastructures visitées">
+    <svg viewBox="0 0 36 36" class="ring"><circle cx="18" cy="18" r="15.5" class="bg"/><circle cx="18" cy="18" r="15.5" class="fg" id="ring-fg"/></svg>
+    <div><b id="prog-n">0</b><span> / <span id="prog-total">52</span> visitées</span></div>
+  </div>
+  <button id="btn-search" class="round" aria-label="Liste">🔎</button>
+</div>
+
+<!-- Bandeau de guidage -->
+<div id="navbar" hidden>
+  <div id="nav-arrow">⬆</div>
+  <div id="nav-text"><div id="nav-instr">…</div><div id="nav-sub"></div></div>
+  <button id="nav-voice" class="mini" aria-label="Voix">🔇</button>
+  <button id="nav-stop" class="mini stop" aria-label="Arrêter">✕</button>
+</div>
+
+<!-- Boutons flottants -->
+<div id="fabs">
+  <button id="fab-locate" class="fab" aria-label="Ma position">📍</button>
+  <button id="fab-next" class="fab" aria-label="Prochaine à visiter">🧭</button>
+  <button id="fab-base" class="fab" aria-label="Fond de carte">🛰️</button>
+</div>
+
+<!-- Légende -->
+<div id="legend"><span class="dot todo"></span>À visiter <span class="dot done"></span>Visitée <span class="dot form"></span>Fiche remplie</div>
+
+<div id="toast" role="status"></div>
+
+<!-- Fiche de l'infrastructure sélectionnée -->
+<div id="sheet" hidden>
+  <div class="grab"></div>
+  <div class="s-head">
+    <div class="s-emoji" id="s-emoji">🏫</div>
+    <div class="s-title"><h2 id="s-nom">—</h2><p id="s-meta">—</p></div>
+    <button id="s-close" class="mini" aria-label="Fermer">✕</button>
+  </div>
+  <div class="s-info"><span id="s-dist">📏 —</span><span id="s-state" class="chip">À visiter</span><span id="s-form" class="chip ghost">Fiche vide</span></div>
+  <div class="s-actions">
+    <button id="a-route" class="btn primary">🧭 Itinéraire</button>
+    <button id="a-form" class="btn">📝 Formulaire</button>
+    <button id="a-visit" class="btn">🔴 Marquer visité</button>
+  </div>
+</div>
+
+<!-- Menu / liste -->
+<aside id="drawer" hidden>
+  <div class="d-head"><h2>Fatick Terrain</h2><button id="d-close" class="mini">✕</button></div>
+  <div class="d-tabs">
+    <button data-tab="list" class="on">Liste</button><button data-tab="export">Export</button><button data-tab="settings">Réglages</button>
+  </div>
+
+  <section data-pane="list">
+    <input id="q" type="search" placeholder="Rechercher un nom ou un quartier…" autocomplete="off">
+    <div id="chips"></div>
+    <div id="list"></div>
+  </section>
+
+  <section data-pane="export" hidden>
+    <h3>Exporter les enquêtes</h3>
+    <p class="muted">Un classeur Excel avec une feuille par type d'infrastructure (mêmes colonnes que tes fichiers Kobo) + une feuille « Suivi_visites ».</p>
+    <label class="check"><input type="checkbox" id="only-filled"> Seulement les infrastructures dont la fiche est remplie</label>
+    <button id="x-xlsx" class="btn primary block">⬇️ Télécharger le fichier Excel (.xlsx)</button>
+    <button id="x-share" class="btn block">📤 Partager (WhatsApp, e-mail…)</button>
+    <h3>Sauvegarde</h3>
+    <p class="muted">Copie de sécurité de tout ce que tu as saisi (visites + fiches). Utile pour changer de téléphone.</p>
+    <button id="x-json" class="btn block">💾 Sauvegarder (.json)</button>
+    <label class="btn block file">📂 Restaurer une sauvegarde<input type="file" id="x-import" accept=".json,application/json" hidden></label>
+    <div class="state-line" id="save-info"></div>
+  </section>
+
+  <section data-pane="settings" hidden>
+    <h3>Visite automatique</h3>
+    <label class="check"><input type="checkbox" id="s-auto" checked> Marquer en rouge automatiquement en arrivant</label>
+    <p class="muted">Une infrastructure passe en rouge quand tu es à moins de :</p>
+    <div class="range"><input type="range" id="s-radius" min="15" max="120" step="5"><b id="s-radius-v">40 m</b></div>
+    <h3>Guidage</h3>
+    <label class="field">Mode de déplacement
+      <select id="s-profile"><option value="foot">🚶 À pied</option><option value="bike">🛵 Vélo / moto</option><option value="car">🚗 Voiture</option></select></label>
+    <label class="check"><input type="checkbox" id="s-voice"> Annonces vocales (français)</label>
+    <label class="check"><input type="checkbox" id="s-wake" checked> Garder l'écran allumé pendant le guidage</label>
+    <h3>Hors-ligne</h3>
+    <p class="muted">Télécharge le fond de carte actuel de toute la zone (zooms 13 à 17) pour l'utiliser sans réseau. À faire une fois, en Wi-Fi.</p>
+    <button id="s-offline" class="btn block">🗺️ Télécharger la carte hors-ligne</button>
+    <div class="bar" id="off-bar" hidden><i id="off-fill"></i></div><div class="muted" id="off-info"></div>
+    <h3>Données</h3>
+    <button id="s-reset" class="btn danger block">↺ Remettre toutes les infrastructures à « à visiter »</button>
+    <p class="muted small">Les fiches saisies sont conservées. Pour tout effacer, supprime les données du site dans les réglages du navigateur.</p>
+  </section>
+</aside>
+
+<!-- Formulaire -->
+<div id="formwrap" hidden>
+  <form id="form" autocomplete="off">
+    <div class="f-head"><div><h2 id="f-title">Fiche</h2><p id="f-sub"></p></div><button type="button" id="f-close" class="mini">✕</button></div>
+    <div id="f-body"></div>
+    <div class="f-gps"><span id="f-coords"></span><span><button type="button" id="f-gps" class="btn small">📍 Ma position</button> <button type="button" id="f-reset" class="btn small">↺ Origine</button></span></div>
+    <div class="f-foot"><button type="button" id="f-cancel" class="btn">Annuler</button><button type="submit" class="btn primary">✔ Enregistrer</button></div>
+  </form>
+</div>
+
+<script src="libs/leaflet/leaflet.js"></script>
+<script src="libs/xlsx.full.min.js"></script>
+<script src="libs/proj4.js"></script>
+<script src="js/data.js"></script>
+<script src="js/forms.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
